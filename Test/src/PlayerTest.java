@@ -1,3 +1,4 @@
+import javax.xml.crypto.dsig.keyinfo.KeyValue;
 import java.util.*;
 import java.io.*;
 import java.math.*;
@@ -37,6 +38,7 @@ class PlayerTest {
 
         // game loop
         while (true) {
+            boolean hasFreeFactory = false;
             int entityCount = in.nextInt(); // the number of entities (e.g. factories and troops)
             for (int i = 0; i < entityCount; i++)
             {
@@ -50,7 +52,10 @@ class PlayerTest {
                 //TODO : revoir l'heuristique dans son ensemble
 
                 updateGame( entityType, arg1, arg2, arg3, arg4, arg5, entityId);
-
+                if(arg1 == 0 && entityType.equalsIgnoreCase(FACTORY) ) //TODO : to check if arg = 0 intervient seulement dans le cas des factory
+                {
+                    hasFreeFactory = true;
+                }
             }
 
             // Write an action using System.out.println()
@@ -58,7 +63,9 @@ class PlayerTest {
 
 
             // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
-            System.out.println("WAIT");
+            StringBuilder sb = Heuristic(hasFreeFactory);
+            System.out.println(sb + " WAIT");
+
         }
     }
 
@@ -128,10 +135,45 @@ class PlayerTest {
         bombs.set(entityId,new Bomb(entityId,arg2,arg3,arg1,arg4)) ;
     }
 
-    private  static void Heuristic()
+    private  static StringBuilder Heuristic(boolean hasFreeFactory)
     {
         //TODO : si plus d'usine de libre, on se resout a augmenter la production si on n'est pas en train de perdre des usnines
+        StringBuilder sb = new StringBuilder();
+        if(hasFreeFactory)
+        {
+            for (Factory factory: myFactories )
+            {
+                while(factory.nbCyborg >= 0)
+                {
+                    Factory target = factory.FactoryTheMostValuable(); //TODO : preciser peut etre la possesion et mettre a jour cette factory
+                    int distance = factory.children.get(target);
+                    int nbCyborg = target.nbCyborg + distance * target.production;
+                    factory.nbCyborg -= nbCyborg;
+                    sb.append("MOVE " + factory.id +" " + target.id +" "+nbCyborg);
+                }
+            }    
+        }
+        else
+        {
+            for (Factory factory: myFactories )
+            {
+                Factory target = factory.FactoryNeedSupport();
+                if(target == null)
+                {
+                    if(factory.nbCyborg >= 10)
+                    {
+                        sb.append("INC " + factory.id);
+                    }
+                    continue;
+                }
+                int nbCyborg = target.nbCyborg;
+                sb.append("MOVE " + factory.id +" " + target.id +" "+nbCyborg);
+            }
+        }
+        return sb;
     }
+
+
       static class Factory{
 
         int id;
@@ -174,6 +216,38 @@ class PlayerTest {
             Factory factory = (Factory) fac;
 
             return factory.id == id;
+        }
+
+        public Factory FactoryTheMostValuable()
+        {
+            double max = 0;
+            Factory result = null;
+            for (Map.Entry<Factory,Integer> entry : children.entrySet())
+            {
+                double value = 10;
+                if(value > max)
+                {
+                    max = value;
+                    result = entry.getKey();
+                }
+            }
+            return result;
+        }
+
+        public Factory FactoryNeedSupport()
+        {
+            double max =0;
+            Factory result = null;
+            for(Map.Entry<Factory, Integer> entry : children.entrySet())
+            {
+                Factory factoryTampon = entry.getKey();
+                if(factoryTampon.joueur ==1 && factoryTampon.nbCyborg <0)
+                {
+                    int nbCyborg = factoryTampon.nbCyborg;
+                    return factoryTampon;
+                }
+            }
+            return null;
         }
     }
 
